@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+
+import rospy
+import cv2
+import numpy as np
+
+from sensor_msgs.msg import CompressedImage, Range
+
+
+distance = None
+
+MIN_RANGE = 0.05
+MAX_RANGE = 1.20
+WARNING_DISTANCE = 0.50
+
+
+def tof_callback(msg):
+
+    global distance
+
+    if MIN_RANGE <= msg.range <= MAX_RANGE:
+        distance = msg.range
+    else:
+        distance = None
+
+
+def camera_callback(msg):
+
+    image = cv2.imdecode(
+        np.frombuffer(msg.data, np.uint8),
+        cv2.IMREAD_COLOR
+    )
+
+    if distance is None:
+
+        text = "Distance: Out of Range"
+
+    elif distance <= WARNING_DISTANCE:
+
+        text = "WARNING! %.2f m" % distance
+
+    else:
+
+        text = "SAFE - %.2f m" % distance
+
+    cv2.putText(
+        image,
+        text,
+        (20, 40),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 0, 255) if distance and distance <= WARNING_DISTANCE
+        else (0, 255, 0),
+        2
+    )
+
+    cv2.imshow("Obstacle Warning", image)
+    cv2.waitKey(1)
+
+
+rospy.init_node("obstacle_warning")
+
+rospy.Subscriber(
+    "/duck4/front_center_tof_driver_node/range",
+    Range,
+    tof_callback
+)
+
+rospy.Subscriber(
+    "/duck4/camera_node/image/compressed",
+    CompressedImage,
+    camera_callback
+)
+
+rospy.spin()
+
+cv2.destroyAllWindows()
